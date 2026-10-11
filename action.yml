@@ -51,6 +51,15 @@ inputs:
     description: The peekdrift CLI version to run.
     required: false
     default: latest
+  commit:
+    description: Commit to report the build for. Defaults to the one GitHub ran on; set it when uploading a fork's Storybook from a workflow_run workflow.
+    required: false
+  branch:
+    description: Branch to report the build for (see commit).
+    required: false
+  pullRequest:
+    description: Pull request number to report the build for (see commit).
+    required: false
   apiUrl:
     description: Peekdrift API URL.
     required: false
@@ -105,6 +114,9 @@ runs:
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_SKIP: ${{ inputs.skip }}
         INPUT_JUNIT_REPORT: ${{ inputs.junitReport }}
+        PEEKDRIFT_SHA: ${{ inputs.commit }}
+        PEEKDRIFT_BRANCH: ${{ inputs.branch }}
+        PEEKDRIFT_PULL_REQUEST: ${{ inputs.pullRequest }}
       run: |
         if [ -z "$PEEKDRIFT_PROJECT_TOKEN" ]; then
           echo "::error title=Peekdrift::projectToken is empty. Pull requests from forks don't receive secrets; see https://github.com/peekdrift/action#forks"
@@ -113,6 +125,10 @@ runs:
         if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
           echo "::warning title=Peekdrift::The repository is a shallow clone. Set fetch-depth: 0 on actions/checkout so Peekdrift can find the right baseline."
         fi
+        # Empty inputs must not override what the CLI reads from GitHub's event.
+        for name in PEEKDRIFT_SHA PEEKDRIFT_BRANCH PEEKDRIFT_PULL_REQUEST; do
+          if [ -z "${!name}" ]; then unset "$name"; fi
+        done
         args=(--build-script-name "$INPUT_BUILD_SCRIPT_NAME")
         if [ -n "$INPUT_STORYBOOK_BUILD_DIR" ]; then args+=(--storybook-build-dir "$INPUT_STORYBOOK_BUILD_DIR"); fi
         if [ -n "$INPUT_CONFIG" ]; then args+=(--config "$INPUT_CONFIG"); fi
