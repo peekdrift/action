@@ -1,0 +1,120 @@
+name: Peekdrift
+description: Visual regression testing for Storybook. Uploads your Storybook, screenshots every story and reports changes on the pull request.
+author: Peekdrift
+branding:
+  icon: eye
+  color: purple
+
+inputs:
+  projectToken:
+    description: The project token from the project's settings page. Store it as a secret.
+    required: true
+  storybookBuildDir:
+    description: An already built Storybook directory. When set, the build step is skipped.
+    required: false
+  buildScriptName:
+    description: The package.json script that builds Storybook.
+    required: false
+    default: build-storybook
+  workingDir:
+    description: Directory to run in, for monorepos.
+    required: false
+    default: .
+  config:
+    description: Path to peekdrift.config.json. Defaults to ./peekdrift.config.json when it exists.
+    required: false
+  onlyChanged:
+    description: Only screenshot stories affected by files changed since the baseline build. Needs the full git history (fetch-depth 0).
+    required: false
+    default: "false"
+  externals:
+    description: With onlyChanged, newline-separated globs of files that affect every story when they change.
+    required: false
+  untraced:
+    description: With onlyChanged, newline-separated globs of files whose changes never matter.
+    required: false
+  exitOnceUploaded:
+    description: Finish as soon as the Storybook is uploaded instead of waiting for the result. The GitHub check still reports the outcome.
+    required: false
+    default: "false"
+  exitZeroOnChanges:
+    description: Succeed even when changes need review. The GitHub check still reports them.
+    required: false
+    default: "false"
+  version:
+    description: The peekdrift CLI version to run.
+    required: false
+    default: latest
+  apiUrl:
+    description: Peekdrift API URL.
+    required: false
+    default: https://app.peekdrift.com
+
+outputs:
+  buildUrl:
+    description: The build's page on Peekdrift.
+    value: ${{ steps.run.outputs.buildUrl }}
+  buildNumber:
+    description: The build number.
+    value: ${{ steps.run.outputs.buildNumber }}
+  status:
+    description: Passed, PendingReview, Accepted, Rejected or Errored.
+    value: ${{ steps.run.outputs.status }}
+  code:
+    description: The CLI's exit code. 0 passed, 1 changes need review, 2 errored.
+    value: ${{ steps.run.outputs.code }}
+  changeCount:
+    description: Snapshots that changed.
+    value: ${{ steps.run.outputs.changeCount }}
+  newCount:
+    description: New snapshots.
+    value: ${{ steps.run.outputs.newCount }}
+  removedCount:
+    description: Removed snapshots.
+    value: ${{ steps.run.outputs.removedCount }}
+  unchangedCount:
+    description: Unchanged snapshots.
+    value: ${{ steps.run.outputs.unchangedCount }}
+  pendingCount:
+    description: Snapshots waiting for review.
+    value: ${{ steps.run.outputs.pendingCount }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      working-directory: ${{ inputs.workingDir }}
+      env:
+        PEEKDRIFT_PROJECT_TOKEN: ${{ inputs.projectToken }}
+        PEEKDRIFT_API_URL: ${{ inputs.apiUrl }}
+        INPUT_STORYBOOK_BUILD_DIR: ${{ inputs.storybookBuildDir }}
+        INPUT_BUILD_SCRIPT_NAME: ${{ inputs.buildScriptName }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_ONLY_CHANGED: ${{ inputs.onlyChanged }}
+        INPUT_EXTERNALS: ${{ inputs.externals }}
+        INPUT_UNTRACED: ${{ inputs.untraced }}
+        INPUT_EXIT_ONCE_UPLOADED: ${{ inputs.exitOnceUploaded }}
+        INPUT_EXIT_ZERO_ON_CHANGES: ${{ inputs.exitZeroOnChanges }}
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        if [ -z "$PEEKDRIFT_PROJECT_TOKEN" ]; then
+          echo "::error title=Peekdrift::projectToken is empty. Pull requests from forks don't receive secrets; see https://github.com/peekdrift/action#forks"
+          exit 2
+        fi
+        if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+          echo "::warning title=Peekdrift::The repository is a shallow clone. Set fetch-depth: 0 on actions/checkout so Peekdrift can find the right baseline."
+        fi
+        args=(--build-script-name "$INPUT_BUILD_SCRIPT_NAME")
+        if [ -n "$INPUT_STORYBOOK_BUILD_DIR" ]; then args+=(--storybook-build-dir "$INPUT_STORYBOOK_BUILD_DIR"); fi
+        if [ -n "$INPUT_CONFIG" ]; then args+=(--config "$INPUT_CONFIG"); fi
+        if [ "$INPUT_ONLY_CHANGED" = "true" ]; then args+=(--only-changed); fi
+        if [ "$INPUT_EXIT_ONCE_UPLOADED" = "true" ]; then args+=(--exit-once-uploaded); fi
+        if [ "$INPUT_EXIT_ZERO_ON_CHANGES" = "true" ]; then args+=(--exit-zero-on-changes); fi
+        while IFS= read -r glob; do
+          if [ -n "$glob" ]; then args+=(--externals "$glob"); fi
+        done <<< "$INPUT_EXTERNALS"
+        while IFS= read -r glob; do
+          if [ -n "$glob" ]; then args+=(--untraced "$glob"); fi
+        done <<< "$INPUT_UNTRACED"
+        npx --yes "peekdrift@$INPUT_VERSION" "${args[@]}"
