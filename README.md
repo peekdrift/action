@@ -39,6 +39,8 @@ jobs:
 | `untraced` | | With `onlyChanged`: newline-separated globs whose changes never matter. |
 | `exitOnceUploaded` | `false` | Finish once the Storybook is uploaded. The GitHub check still reports the result. |
 | `exitZeroOnChanges` | `false` | Succeed even when changes need review. |
+| `skip` | | `true` passes the check without snapshots; a glob such as `dependabot/**` skips only matching branches. |
+| `junitReport` | | `true` (or a file path) writes a JUnit XML report: one test case per snapshot. |
 | `version` | `latest` | The `peekdrift` CLI version. |
 
 ## Outputs

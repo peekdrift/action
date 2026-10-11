@@ -41,6 +41,12 @@ inputs:
     description: Succeed even when changes need review. The GitHub check still reports them.
     required: false
     default: "false"
+  skip:
+    description: Pass the check without taking snapshots. "true" skips every run; a glob such as "dependabot/**" skips only matching branches.
+    required: false
+  junitReport:
+    description: Write a JUnit XML report of the result. "true" uses peekdrift-build-<number>.xml; any other value is the file path.
+    required: false
   version:
     description: The peekdrift CLI version to run.
     required: false
@@ -97,6 +103,8 @@ runs:
         INPUT_EXIT_ONCE_UPLOADED: ${{ inputs.exitOnceUploaded }}
         INPUT_EXIT_ZERO_ON_CHANGES: ${{ inputs.exitZeroOnChanges }}
         INPUT_VERSION: ${{ inputs.version }}
+        INPUT_SKIP: ${{ inputs.skip }}
+        INPUT_JUNIT_REPORT: ${{ inputs.junitReport }}
       run: |
         if [ -z "$PEEKDRIFT_PROJECT_TOKEN" ]; then
           echo "::error title=Peekdrift::projectToken is empty. Pull requests from forks don't receive secrets; see https://github.com/peekdrift/action#forks"
@@ -111,6 +119,8 @@ runs:
         if [ "$INPUT_ONLY_CHANGED" = "true" ]; then args+=(--only-changed); fi
         if [ "$INPUT_EXIT_ONCE_UPLOADED" = "true" ]; then args+=(--exit-once-uploaded); fi
         if [ "$INPUT_EXIT_ZERO_ON_CHANGES" = "true" ]; then args+=(--exit-zero-on-changes); fi
+        if [ "$INPUT_SKIP" = "true" ]; then args+=(--skip); elif [ -n "$INPUT_SKIP" ] && [ "$INPUT_SKIP" != "false" ]; then args+=(--skip "$INPUT_SKIP"); fi
+        if [ "$INPUT_JUNIT_REPORT" = "true" ]; then args+=(--junit-report); elif [ -n "$INPUT_JUNIT_REPORT" ] && [ "$INPUT_JUNIT_REPORT" != "false" ]; then args+=(--junit-report "$INPUT_JUNIT_REPORT"); fi
         while IFS= read -r glob; do
           if [ -n "$glob" ]; then args+=(--externals "$glob"); fi
         done <<< "$INPUT_EXTERNALS"
